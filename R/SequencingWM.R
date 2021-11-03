@@ -6,7 +6,7 @@
 
 
 #' get seq_data
-SequencingWM <- function(df_main, sequenceFrames,  cutoff = 2){
+SequencingWM <- function(df_main, sequenceFrames,  cutoff = 2, cutoffGrab = 5){
 
   pb <- progress::progress_bar$new(total = length(sequence_start)) # progress bar
 
@@ -82,6 +82,8 @@ SequencingWM <- function(df_main, sequenceFrames,  cutoff = 2){
 
     pb$tick()
 
+    last_grabbed <- "undefined"
+
     # now look at all sequences associated with this display!
     # last frame is end frame so do not use it as a start!
     for(seq in 1:(length(seqs_display)-1)){
@@ -142,13 +144,26 @@ SequencingWM <- function(df_main, sequenceFrames,  cutoff = 2){
           grabStart  <-  F
           distRefixate <- distTotal <- -1}
 
-        # has something been grabbed on the frame before
+        # has something been grabbed on the frame before?
+        # --> don't count breaks in between grabs that are smaller than cutoffGrab frames
+
+        if(frame < cutoffGrab){looking_back2 <- frame # adjust cutoff for all frames smaller than cutoff
+        }else {looking_back2 <- cutoffGrab}
+
+        earlier_rows <- df_main$grabbed[(frame - looking_back2):(frame-1)] #get latest grabbed frames
+
+        # check if something is already grabbed
+        # ... or we count it as such because there has been something grabbed 5 frames earlier
         if(frame == 1){
           grabbed_before <- F
-          seen_before <- "undefined"
+
+          # something else has been grabbed just before
+        }else if(sum(earlier_rows) > 0){
+          grabbed_before <- T
+
         }else{
-          grabbed_before <- df_main$grabbed[frame-1]
-          seen_before <- df_main$gazeArea[frame-1]
+          grabbed_before <- F
+          #seen_before <- df_main$gazeArea[frame-1]
         }
 
 
@@ -159,10 +174,11 @@ SequencingWM <- function(df_main, sequenceFrames,  cutoff = 2){
         if(df_main$grabbed[frame] == T  # something is grabbed
            & grabbed_before == F # before that nothing was grabbed
            & df_main$isTarget[frame] == T # grabbed object is target
-           & df_main$gazeArea[frame] != "workspaceArea" ){ # was grabbed from resource table! (not after placement error in workspace)
-
+           #& df_main$gazeArea[frame] != "workspaceArea" ){ # was grabbed from resource table! (not after placement error in workspace)
+           & last_grabbed != df_main$grabbedTargetName[frame])
           # count up
           identity <- identity + 1
+          last_grabbed <- df_main$grabbedTargetName[frame] # prevent from counting same object twice in a row after error
           # ----- grabError -------- #
         } else if(
           df_main$grabbed[frame] == T &
